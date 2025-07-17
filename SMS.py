@@ -3,7 +3,7 @@ import asyncio
 import random
 import string
 import httpx
-import os  # <-- تأكد من وجود هذا السطر
+import os
 
 from telegram import Update
 from telegram.ext import (
@@ -15,15 +15,14 @@ from telegram.ext import (
     filters,
 )
 
-# هذا هو السطر الصحيح لمنصات الاستضافة
+# يقرأ التوكن من متغيرات البيئة (Variables) في منصة التشغيل
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
 
-# --- باقي الكود ---
 # إعدادات عامة
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(name)
 GET_NUMBER, GET_COUNT = range(2)
 API_URL = "https://api.twistmena.com/music/Dlogin/sendCode"
 USER_AGENTS = [
@@ -76,12 +75,11 @@ async def run_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except httpx.ConnectTimeout:
                 logger.error("Connection to SMS API timed out.")
                 failure_count += 1
-                await context.bot.send_message(chat_id, "❌ فشل الاتصال بسيرفر الرسائل (Timed Out).")
             except Exception as e:
                 logger.error(f"An unexpected error occurred: {e}")
                 failure_count += 1
             await asyncio.sleep(random.uniform(1.0, 2.5))
-    summary_text = f"📊 **اكتملت العملية** 📊\n- ✅ **نجاح:** `{success_count}`\n- ❌ **فشل:** `{failure_count}`"
+    summary_text = f"📊 اكتملت العملية 📊\n- ✅ نجاح: {success_count}\n- ❌ فشل: {failure_count}"
     await context.bot.send_message(chat_id, text=summary_text, parse_mode='Markdown')
 
 async def get_count(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -96,15 +94,13 @@ async def get_count(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     except (ValueError, TypeError):
         await update.message.reply_text("❌ هذا ليس رقمًا صحيحًا.")
         return GET_COUNT
-
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("👍 تم إلغاء العملية.")
     return ConversationHandler.END
-
+    
 def main() -> None:
-    # سيتم عرض خطأ إذا لم يتم العثور على التوكن
     if not TOKEN:
-        print("❌ خطأ: لم يتم العثور على متغير TELEGRAM_TOKEN. يرجى إضافته.")
+        print("❌ خطأ: لم يتم العثور على متغير TELEGRAM_TOKEN. يرجى إضافته في إعدادات المنصة.")
         return
 
     application = Application.builder().token(TOKEN).build()
@@ -121,5 +117,5 @@ def main() -> None:
     print("🚀 Bot is running...")
     application.run_polling()
 
-if __name__ == "__main__":
+if name == "main":
     main()
