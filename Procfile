@@ -1,1 +1,1 @@
-worker: python SMS.py
+worker: python bot.py
